@@ -20,6 +20,7 @@ RUN apk add --no-cache \
     oniguruma-dev \
     zlib-dev \
     postgresql-dev \
+    mariadb-dev \
     autoconf \
     make \
     g++ \
@@ -33,6 +34,7 @@ RUN docker-php-ext-configure zip \
         bcmath \
         gd \
         pdo \
+        pdo_mysql \
         pdo_pgsql \
         zip \
         intl \
@@ -94,10 +96,8 @@ RUN apk add --no-cache \
     icu \
     gmp \
     zlib \
-    postgresql-libs
-
-# ❌ NO docker-php-ext-install यहाँ
-# ❌ NO pecl install redis यहाँ
+    postgresql-libs \
+    mariadb-connector-c
 
 # Copy PHP binaries + compiled extensions + app
 COPY --from=base /usr/local /usr/local
