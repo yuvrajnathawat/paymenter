@@ -18,6 +18,7 @@ RUN apk add --no-cache \
     icu-dev \
     gmp-dev \
     oniguruma-dev \
+    zlib-dev \
     autoconf \
     make \
     g++ \
