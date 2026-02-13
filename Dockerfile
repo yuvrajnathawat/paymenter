@@ -19,6 +19,7 @@ RUN apk add --no-cache \
     gmp-dev \
     oniguruma-dev \
     zlib-dev \
+    postgresql-dev \
     autoconf \
     make \
     g++ \
@@ -38,7 +39,7 @@ RUN docker-php-ext-configure zip \
         sockets \
         gmp
 
-# Install Redis (ONLY here ✅)
+# Install Redis (ONLY यहाँ ✅)
 RUN pecl install redis \
     && docker-php-ext-enable redis
 
@@ -92,12 +93,13 @@ RUN apk add --no-cache \
     libzip \
     icu \
     gmp \
-    zlib
+    zlib \
+    postgresql-libs
 
-# ❌ NO docker-php-ext-install here
-# ❌ NO pecl install redis here
+# ❌ NO docker-php-ext-install यहाँ
+# ❌ NO pecl install redis यहाँ
 
-# Copy PHP binaries + extensions + app
+# Copy PHP binaries + compiled extensions + app
 COPY --from=base /usr/local /usr/local
 COPY --from=base /app /app
 COPY --from=nodebuild /app/public /app/public
@@ -105,7 +107,7 @@ COPY --from=nodebuild /app/public /app/public
 # Permissions
 RUN chmod -R 777 storage bootstrap/cache
 
-# Render पोर्ट
+# Render port
 EXPOSE 10000
 
 # Start Laravel
