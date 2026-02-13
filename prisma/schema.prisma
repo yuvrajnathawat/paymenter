@@ -1,0 +1,19 @@
+/// Prisma schema for Bazzar
+/// 
+/// This file defines the datasource and generator for PostgreSQL.
+/// Models are intentionally left empty so you can introspect your
+/// existing database schema with:
+/// 
+///   npx prisma db pull
+/// 
+/// Once pulled, Prisma Client can be used in serverless functions.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
