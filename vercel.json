@@ -4,7 +4,7 @@
     { "src": "package.json", "use": "@vercel/node" }
   ],
   "env": {
-    "DATABASE_URL": "@database_url"
+    "DATABASE_URL": "postgresql://neondb_owner:npg_GNeaY5yX7TVs@ep-cool-snow-ai0phsaa.c-4.us-east-1.aws.neon.tech/neondb?sslmode=require"
   }
 }
 
