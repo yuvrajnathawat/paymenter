@@ -38,22 +38,22 @@ RUN docker-php-ext-configure zip \
         sockets \
         gmp
 
-# Install Redis
+# Install Redis (ONLY here ✅)
 RUN pecl install redis \
     && docker-php-ext-enable redis
 
-# Cleanup build deps
+# Cleanup build dependencies
 RUN apk del autoconf make g++ gcc libc-dev linux-headers
 
 # Install Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
-# Copy composer files first (cache friendly)
+# Copy composer files first (better cache)
 COPY composer.json composer.lock ./
 
 RUN composer install --no-dev --no-scripts --no-autoloader
 
-# Copy project
+# Copy project files
 COPY . .
 
 RUN composer install --no-dev --optimize-autoloader
@@ -82,7 +82,7 @@ FROM php:8.3-cli-alpine AS production
 
 WORKDIR /app
 
-# ONLY runtime packages (no dev needed)
+# Install runtime libs ONLY
 RUN apk add --no-cache \
     nginx \
     supervisor \
@@ -94,13 +94,10 @@ RUN apk add --no-cache \
     gmp \
     zlib
 
-# ❌ REMOVE docker-php-ext-install from production
+# ❌ NO docker-php-ext-install here
+# ❌ NO pecl install redis here
 
-# Install Redis (lightweight)
-RUN pecl install redis \
-    && docker-php-ext-enable redis
-
-# Copy compiled PHP + extensions + app
+# Copy PHP binaries + extensions + app
 COPY --from=base /usr/local /usr/local
 COPY --from=base /app /app
 COPY --from=nodebuild /app/public /app/public
@@ -108,7 +105,7 @@ COPY --from=nodebuild /app/public /app/public
 # Permissions
 RUN chmod -R 777 storage bootstrap/cache
 
-# Render port
+# Render पोर्ट
 EXPOSE 10000
 
 # Start Laravel
