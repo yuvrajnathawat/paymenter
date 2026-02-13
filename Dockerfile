@@ -1,56 +1,121 @@
-# Stage 1:
-# Build the actual container with all of the needed PHP dependencies that will run the application.
-FROM --platform=$TARGETOS/$TARGETARCH php:8.3-fpm-alpine AS final
+# -------------------------
+# Stage 1: PHP Dependencies
+# -------------------------
+FROM php:8.3-fpm-alpine AS base
+
 WORKDIR /app
 
-RUN apk add --no-cache --update ca-certificates dcron curl git supervisor tar unzip nginx libpng-dev libxml2-dev libzip-dev icu-dev autoconf make g++ gcc libc-dev linux-headers gmp-dev \
-    && docker-php-ext-configure zip \
-    && docker-php-ext-install bcmath gd pdo_mysql zip intl sockets gmp \
-    && pecl install redis \
-    && docker-php-ext-enable redis \
-    && apk del autoconf make g++ gcc libc-dev
-RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
+# Install system packages
+RUN apk add --no-cache \
+    ca-certificates \
+    dcron \
+    curl \
+    git \
+    unzip \
+    libpng-dev \
+    libxml2-dev \
+    libzip-dev \
+    icu-dev \
+    gmp-dev \
+    oniguruma-dev \
+    autoconf \
+    make \
+    g++ \
+    gcc \
+    libc-dev \
+    linux-headers
 
+# Install PHP extensions
+RUN docker-php-ext-configure zip \
+    && docker-php-ext-install \
+        bcmath \
+        gd \
+        pdo \
+        pdo_pgsql \
+        zip \
+        intl \
+        sockets \
+        gmp
+
+# Install Redis
+RUN pecl install redis \
+    && docker-php-ext-enable redis
+
+# Cleanup build deps
+RUN apk del autoconf make g++ gcc libc-dev linux-headers
+
+# Install Composer
+COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
+
+# Copy composer files first (better caching)
 COPY composer.json composer.lock ./
-RUN composer install --no-dev --no-autoloader --no-scripts
 
-COPY . ./
+RUN composer install --no-dev --no-scripts --no-autoloader
+
+# Copy project
+COPY . .
+
 RUN composer install --no-dev --optimize-autoloader
 
-RUN cp .env.example .env \
-    && chmod 777 -R bootstrap storage/* \
-    && rm -rf .env bootstrap/cache/*.php \
-    && chown -R nginx:nginx . \
-    && rm /usr/local/etc/php-fpm.conf \
-    && echo "* * * * * /usr/local/bin/php /app/artisan schedule:run >> /dev/null 2>&1" >> /var/spool/cron/crontabs/root \
-    && mkdir -p /var/run/php /var/run/nginx
 
-FROM --platform=$TARGETOS/$TARGETARCH node:22-alpine AS build
+# -------------------------
+# Stage 2: Node Build
+# -------------------------
+FROM node:22-alpine AS nodebuild
+
 WORKDIR /app
 
 COPY package.json package-lock.json ./
 RUN npm install
 
-COPY . ./
-COPY --from=final /app/vendor /app/vendor
+COPY . .
+COPY --from=base /app/vendor /app/vendor
+
 RUN npm run build
 
-# Switch back to the final stage
-FROM final AS production
-COPY --from=build /app/public /app/public
 
-# Copy themes and extensions to default locations for renewal on startup
-RUN cp -r /app/themes /app/themes_default && \
-    cp -r /app/extensions /app/extensions_default
+# -------------------------
+# Stage 3: Production Image
+# -------------------------
+FROM php:8.3-cli-alpine AS production
 
-# Environment variable to skip default themes/extensions renewal
-# Set PAYMENTER_SKIP_DEFAULT=true to keep any custom modifications to defaults
-ENV PAYMENTER_SKIP_DEFAULT=false
+WORKDIR /app
 
-COPY .github/docker/default.conf /etc/nginx/http.d/default.conf
-COPY .github/docker/www.conf /usr/local/etc/php-fpm.conf
-COPY .github/docker/supervisord.conf /etc/supervisord.conf
+# Install runtime packages
+RUN apk add --no-cache \
+    nginx \
+    supervisor \
+    curl \
+    libpng \
+    libxml2 \
+    libzip \
+    icu \
+    gmp
 
-EXPOSE 80
-ENTRYPOINT [ "/bin/ash", ".github/docker/entrypoint.sh" ]
-CMD [ "supervisord", "-n", "-c", "/etc/supervisord.conf" ]
+# Install PHP extensions again (runtime)
+RUN docker-php-ext-install \
+    bcmath \
+    gd \
+    pdo \
+    pdo_pgsql \
+    zip \
+    intl \
+    sockets \
+    gmp
+
+# Install Redis
+RUN pecl install redis \
+    && docker-php-ext-enable redis
+
+# Copy app
+COPY --from=base /app /app
+COPY --from=nodebuild /app/public /app/public
+
+# Permissions
+RUN chmod -R 777 storage bootstrap/cache
+
+# Expose Render port
+EXPOSE 10000
+
+# Start Laravel server
+CMD ["php", "artisan", "serve", "--host", "0.0.0.0", "--port", "10000"]
