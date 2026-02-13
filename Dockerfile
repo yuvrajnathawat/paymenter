@@ -5,7 +5,7 @@ FROM php:8.3-fpm-alpine AS base
 
 WORKDIR /app
 
-# Install system packages
+# Install system packages + dev libs
 RUN apk add --no-cache \
     ca-certificates \
     dcron \
@@ -48,7 +48,7 @@ RUN apk del autoconf make g++ gcc libc-dev linux-headers
 # Install Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
-# Copy composer files first (better caching)
+# Copy composer files first (cache friendly)
 COPY composer.json composer.lock ./
 
 RUN composer install --no-dev --no-scripts --no-autoloader
@@ -82,7 +82,7 @@ FROM php:8.3-cli-alpine AS production
 
 WORKDIR /app
 
-# Install runtime packages
+# ONLY runtime packages (no dev needed)
 RUN apk add --no-cache \
     nginx \
     supervisor \
@@ -91,32 +91,25 @@ RUN apk add --no-cache \
     libxml2 \
     libzip \
     icu \
-    gmp
+    gmp \
+    zlib
 
-# Install PHP extensions again (runtime)
-RUN docker-php-ext-install \
-    bcmath \
-    gd \
-    pdo \
-    pdo_pgsql \
-    zip \
-    intl \
-    sockets \
-    gmp
+# ❌ REMOVE docker-php-ext-install from production
 
-# Install Redis
+# Install Redis (lightweight)
 RUN pecl install redis \
     && docker-php-ext-enable redis
 
-# Copy app
+# Copy compiled PHP + extensions + app
+COPY --from=base /usr/local /usr/local
 COPY --from=base /app /app
 COPY --from=nodebuild /app/public /app/public
 
 # Permissions
 RUN chmod -R 777 storage bootstrap/cache
 
-# Expose Render port
+# Render port
 EXPOSE 10000
 
-# Start Laravel server
+# Start Laravel
 CMD ["php", "artisan", "serve", "--host", "0.0.0.0", "--port", "10000"]
